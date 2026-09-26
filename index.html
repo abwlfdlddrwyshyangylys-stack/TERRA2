@@ -11,6 +11,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 25 L12 9 L17 17 L22 7 L29 25 Z' fill='none' stroke='%2300e5ff' stroke-width='2'/%3E%3C/svg%3E" />
 <link rel="preload" href="fonts/Shabnam.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="preload" href="fonts/Orbitron.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="fonts/Shabnam-Bold.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="css/tailwind.css" />
 </head>
 
@@ -23,8 +24,12 @@
 
   <!-- اگر WebGL نبود، این پیام بالای صفحه دیده می‌شود نه انتهای آن -->
   <div id="webgl-hint" class="hidden" role="status">
-    <p>هولوگرام سه‌بعدی روی این مرورگر اجرا نمی‌شود — ولی متن و جزئیات پایین صفحه کامل خوانا هستند.</p>
+    <p>هولوگرام سه‌بعدی روی این مرورگر اجرا نمی‌شود — همه‌ی متن‌ها و جزئیات صفحه زیر همین پیام، بدون قالب‌بندی از دست رفته‌اند.</p>
   </div>
+
+  <!-- ناحیه‌ی زنده برای پیمایش با صفحه‌کلید: بدون این، چرخش هولوگرام بی‌صدا
+       و برای کاربر صفحه‌خوان کاملاً نامفهوم است. -->
+  <p id="kbd-live" class="sr-only" role="status" aria-live="polite"></p>
 
   <!-- لایه محتوا -->
   <div class="content">
@@ -55,7 +60,7 @@
           <div class="ms-auto flex items-center gap-3 font-display text-[11px]">
             <span class="flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-emerald-300">
               <span class="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-              <span id="status">BOOT</span>
+              <span id="status">در حال بارگذاری</span>
             </span>
             <span class="hidden sm:inline text-slate-400"><span id="fps">--</span> FPS</span>
             <span class="hidden lg:inline text-violet-300" id="mode">ULTRA</span>
@@ -188,6 +193,10 @@
             <div class="glass-soft flex items-center justify-between rounded-xl px-4 py-3 text-sm">
               <span class="text-slate-400">وابستگی بیرونی</span>
               <span class="font-display text-xs text-emerald-300">صفر — همه‌چیز لوکال</span>
+            </div>
+            <div class="glass-soft flex items-center justify-between rounded-xl px-4 py-3 text-sm">
+              <span class="text-slate-400">چرخش با کلید جهت‌نما</span>
+              <span class="font-display text-xs text-cyan-300" id="t-orbit">۰°</span>
             </div>
           </div>
         </div>

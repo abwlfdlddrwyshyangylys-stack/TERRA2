@@ -9,6 +9,21 @@ import * as THREE from '../vendor/three.module.min.js';
 const canvas = document.getElementById('scene');
 const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
+/* بازخورد پیمایش با صفحه‌کلید. صحنه آرام می‌چرخد و برای کاربر کور این یعنی
+   «هیچی». این تابع هم متن قابل‌خواندن را در ناحیه‌ی زنده می‌گذارد و هم
+   مختصات را در تله‌متری نشان می‌دهد تا تغییر دیده شود.
+   x و y در بازه‌ی -1..1 هستند (همان بازه‌ای که ماوس تولید می‌کند). */
+let lastKeyMsg = '';
+function announceKeys(x, y) {
+  const deg = (n) => Math.round((n + 1) / 2 * 180) - 90;      // -1..1 ⇒ -90..+90
+  const msg = `چرخش هولوگرام: افقی ${deg(x)} درجه، عمودی ${deg(y)} درجه`;
+  if (msg === lastKeyMsg) return;
+  lastKeyMsg = msg;
+  const live = document.getElementById('kbd-live');
+  if (live) live.textContent = msg;
+  set('t-orbit', `${deg(x)}°`);
+}
+
 function hasWebGL() {
   try {
     const c = document.createElement('canvas');
@@ -410,10 +425,14 @@ function boot() {
   doResize();
 
   /* ---------- HUD ---------- */
-  set('status', 'ONLINE');
+  set('status', 'برخط');
   set('mode', tierName.toUpperCase());
   set('segments', String(LAYERS.reduce((a, L) => a + L.seg, 0)));
   set('res', `${innerWidth}×${innerHeight}`);
+  set('layers', String(LAYERS.length));
+  set('particles', String(dustGeometry ? dustGeometry.attributes.position.count : 0));
+  set('t-fps-cap', String(tier.fps));
+  set('t-dpr', devicePixelRatio.toFixed(2).replace(/\.?0+$/, '') || '1');
 
   /* ---------- حلقه ---------- */
   let FRAME = 1000 / tier.fps;
@@ -462,11 +481,14 @@ function boot() {
     }
     set('mode', tierName.toUpperCase() + '↓');
     set('segments', String(LAYERS.reduce((a, L) => a + L.seg, 0)));
+    set('layers', String(LAYERS.length));
+    set('particles', String(dustGeometry ? dustGeometry.attributes.position.count : 0));
+    set('t-fps-cap', String(tier.fps));
   }
 
   function frame(ts) {
     if (!running) return;
-    requestAnimationFrame(frame);
+    kick();                               // نگهبان تک‌نمونه‌ای صف (تعریف پایین‌تر)
     if (ts - last < FRAME) return;
     const dt = clock.getDelta();
     last = ts; t += dt;
@@ -498,6 +520,10 @@ function boot() {
     acc += dt; frames++;
     if (acc >= 0.5) {
       const fps = Math.round(frames / acc);
+      // راند ۹ — بعد از برگشت از تب، اگر ساعت به هر دلیل کهنه مانده باشد
+      // dt یک‌باره بزرگ است و این محاسبه fps=0 نشان می‌داد (یعنی «مرده»).
+      // صفر یعنی اندازه‌گیری بی‌اعتبار است، نه رندر کم؛ پس اصلاً نمایش نمی‌دهیم.
+      if (fps <= 0) { acc = 0; frames = 0; return; }
       set('fps', String(fps));
       autoTune(fps);                    // راند ۱: تصمیم بر پایه‌ی عدد واقعی
       acc = 0; frames = 0;
@@ -506,25 +532,35 @@ function boot() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) running = false;
-    else if (!running) { running = true; last = 0; requestAnimationFrame(frame); }
+    else if (!running) { running = true; last = 0; acc = 0; frames = 0; clock.getDelta(); kick(); }
   });
 
   /* راند ۴ — بازیابی از دست رفتن کانتکست گرافیکی
      روی موبایل‌های ضعیف (و بعد از هشدار OOM مرورگر) درایور GPU می‌تواند کانتکست را
-     بگیرد. بدون این بخش، صفحه برای همیشه سیاه می‌ماند و راه برگشتی نیست. */
+     بگیرد. بدون این بخش، صفحه برای همیشه سیاه می‌ماند و راه برگشتی نیست.
+     راند ۹ — نگهبان صف rAF: هر مسیر بازگشت (تب، کانتکست) خودش frame را دوباره
+     صف می‌کرد و در نتیجه دو یا سه callback در هر تیک اجرا می‌شد (۲.۵ رندر در هر
+     تیک — آزمایشگاه با t9-double.mjs اثبات کرد). قفل تک‌نمونه‌ای این را می‌بندد. */
+  let rafId = 0;
+  const kick = () => {
+    if (rafId) return;            // یک نمونه در صف کافی است
+    rafId = requestAnimationFrame((ts) => { rafId = 0; frame(ts); });
+  };
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
     running = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
     set('status', 'قطع کانتکست');
     set('t-mode', 'در حال بازیابی');
   }, false);
   canvas.addEventListener('webglcontextrestored', () => {
     // همه‌ی بافرها باطل شده‌اند: رندر تارگت‌ها و یک فریم تازه می‌سازیم
     doResize(true);
-    running = true; last = 0;
-    set('status', 'ONLINE');
+    running = true; last = 0; acc = 0; frames = 0;
+    clock.getDelta();             // ساعت کهنه بعد از وقفه، fps را صفر نشان می‌داد
+    set('status', 'برخط');
     set('t-mode', 'بازیابی شد');
-    requestAnimationFrame(frame);
+    kick();
   }, false);
 
   /* راند ۷ (ادامه) — دسترس‌پذیری: پیمایش با صفحه‌کلید
@@ -533,15 +569,22 @@ function boot() {
      عمداً فقط وقتی فوکوس جای دیگری نیست تا با اسکرول صفحه تداخل نکند. */
   if (!reduced) {
     addEventListener('keydown', (e) => {
-      const tag = document.activeElement && document.activeElement.tagName;
+      const el = document.activeElement;
+      const tag = el && el.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // روی لینک‌های ناوبری، کلید جهت‌نما کار خودش را دارد (پیمایش فوکوس).
+      // صحنه را نچرخان تا هم‌زمان دو چیز حرکت نکند.
+      if (el && el.closest && el.closest('a, button, [tabindex]')) return;
       const step = 0.2;
+      const before = { x: ptr.tx, y: ptr.ty };
       if (e.key === 'ArrowRight') ptr.tx = Math.min(1, ptr.tx + step);
       else if (e.key === 'ArrowLeft') ptr.tx = Math.max(-1, ptr.tx - step);
       else if (e.key === 'ArrowUp') ptr.ty = Math.max(-1, ptr.ty - step);
       else if (e.key === 'ArrowDown') ptr.ty = Math.min(1, ptr.ty + step);
       else return;
       e.preventDefault();
+      // بازخورد دیداری: بدون این، پیمایش کاملاً بی‌صدا و بی‌اثر به نظر می‌رسد.
+      if (ptr.tx !== before.x || ptr.ty !== before.y) announceKeys(ptr.tx, ptr.ty);
     }, { passive: false });
   }
 
@@ -559,6 +602,6 @@ function boot() {
     }
   }, { once: true });
 
-  if (reduced) { composite(); set('mode', 'STATIC'); return; }
-  requestAnimationFrame(frame);
+  if (reduced) { composite(); set('mode', 'ایستا'); return; }
+  kick();
 }
