@@ -1,0 +1,1 @@
+{"name":"terra2","private":true,"type":"module","scripts":{"build":"tailwindcss -i src/tailwind.css -o css/tailwind.css --minify"},"devDependencies":{"tailwindcss":"^3.4.17"}}

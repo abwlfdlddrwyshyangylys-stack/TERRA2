@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="fa" dir="rtl" class="scroll-smooth">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ATLAS — هولوگرام زنده</title>
+<meta name="description" content="رابط هولوگرافیک سه‌بعدی: توپوگرافی سیمی درخشان، نوار موبیوس و ذرات نئونی — WebGL با بلوم واقعی." />
+<meta name="theme-color" content="#03060f" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 25 L12 9 L17 17 L22 7 L29 25 Z' fill='none' stroke='%2300e5ff' stroke-width='2'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="css/tailwind.css" />
+</head>
+
+<body class="min-h-screen">
+
+  <!-- لایه‌های سه‌بعدی -->
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="scanlines scanline-overlay" aria-hidden="true"></div>
+
+  <!-- لایه محتوا -->
+  <div class="content">
+
+    <!-- نوار وضعیت بالا -->
+    <header class="fixed top-0 inset-x-0 z-40">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 py-3">
+        <div class="glass hud-corner relative flex flex-wrap items-center gap-3 sm:gap-6 rounded-2xl px-4 sm:px-6 py-3">
+
+          <div class="flex items-center gap-3">
+            <span class="relative grid h-9 w-9 place-items-center">
+              <span class="ring-spin absolute inset-0 rounded-full border border-cyan-400/40 border-t-cyan-300"></span>
+              <span class="font-display text-sm text-cyan-300">A</span>
+            </span>
+            <div class="leading-tight">
+              <p class="font-display text-sm tracking-[0.2em] text-cyan-200">ATLAS</p>
+              <p class="text-[11px] text-slate-400">هولوگرام زنده</p>
+            </div>
+          </div>
+
+          <nav class="hidden md:flex items-center gap-1 text-sm" aria-label="ناوبری">
+            <a href="#top" class="rounded-lg px-3 py-1.5 text-slate-300 transition hover:bg-cyan-400/10 hover:text-cyan-200">سربرگ</a>
+            <a href="#systems" class="rounded-lg px-3 py-1.5 text-slate-300 transition hover:bg-cyan-400/10 hover:text-cyan-200">سامانه‌ها</a>
+            <a href="#telemetry" class="rounded-lg px-3 py-1.5 text-slate-300 transition hover:bg-cyan-400/10 hover:text-cyan-200">تله‌متری</a>
+            <a href="#controls" class="rounded-lg px-3 py-1.5 text-slate-300 transition hover:bg-cyan-400/10 hover:text-cyan-200">کنترل‌ها</a>
+          </nav>
+
+          <div class="ms-auto flex items-center gap-3 font-display text-[11px]">
+            <span class="flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-emerald-300">
+              <span class="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+              <span id="status">BOOT</span>
+            </span>
+            <span class="hidden sm:inline text-slate-400"><span id="fps">--</span> FPS</span>
+            <span class="hidden lg:inline text-violet-300" id="mode">ULTRA</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- هیرو -->
+    <section id="top" class="relative mx-auto flex min-h-[100svh] max-w-7xl flex-col justify-center px-4 sm:px-6 pt-28 pb-16">
+      <div class="max-w-3xl">
+
+        <p class="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-cyan-400/[0.07] px-4 py-1.5 font-display text-[11px] tracking-[0.25em] text-cyan-300">
+          <span class="h-1.5 w-1.5 rounded-full bg-cyan-400"></span>
+          سیستم هولوگرافیک فعال
+        </p>
+
+        <h1 class="font-display text-5xl font-black leading-[1.05] tracking-tight text-white sm:text-7xl lg:text-8xl">
+          زمینِ<br />
+          <span class="bg-gradient-to-l from-cyan-300 via-sky-400 to-violet-400 bg-clip-text text-transparent neon-text">هولوگرافیک</span>
+        </h1>
+
+        <p class="mt-7 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+          این کوه از دل صفحه بیرون می‌زند. هندسه‌اش در همان لحظه داخل مرورگر ساخته می‌شود —
+          بدون یک تصویر، بدون یک ویدیو. فقط نور، مه و مثلث.
+        </p>
+
+        <div class="mt-9 flex flex-wrap items-center gap-3">
+          <a href="#systems" class="inline-flex min-h-[48px] items-center gap-2 rounded-xl border border-cyan-300/50 bg-gradient-to-l from-cyan-400/20 to-violet-500/20 px-7 text-sm font-medium text-white transition hover:shadow-[0_0_30px_rgba(0,229,255,0.35)]">
+            ورود به سامانه
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a href="#controls" class="inline-flex min-h-[48px] items-center rounded-xl border border-white/15 bg-white/5 px-7 text-sm text-slate-200 transition hover:border-cyan-400/40 hover:text-cyan-200">
+            راهنما
+          </a>
+        </div>
+
+        <dl class="mt-14 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
+          <div class="glass-soft rounded-xl px-4 py-3">
+            <dt class="text-[11px] text-slate-400">لایه‌ها</dt>
+            <dd class="font-display text-xl text-cyan-300" id="layers">5</dd>
+          </div>
+          <div class="glass-soft rounded-xl px-4 py-3">
+            <dt class="text-[11px] text-slate-400">خطوط شبکه</dt>
+            <dd class="font-display text-xl text-cyan-300" id="segments">0</dd>
+          </div>
+          <div class="glass-soft rounded-xl px-4 py-3">
+            <dt class="text-[11px] text-slate-400">ذرات</dt>
+            <dd class="font-display text-xl text-cyan-300" id="particles">0</dd>
+          </div>
+          <div class="glass-soft rounded-xl px-4 py-3">
+            <dt class="text-[11px] text-slate-400">وضوح</dt>
+            <dd class="font-display text-sm text-cyan-300 pt-1" id="res">—</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- سامانه‌ها -->
+    <section id="systems" class="relative mx-auto max-w-7xl px-4 sm:px-6 py-20">
+      <div class="mb-10 max-w-2xl">
+        <p class="font-display text-xs tracking-[0.25em] text-cyan-400">۰۱ / سامانه‌ها</p>
+        <h2 class="mt-3 font-display text-3xl font-bold text-white sm:text-4xl">لایه‌های توپوگرافی</h2>
+        <p class="mt-4 text-slate-400">
+          هر لایه موج مستقلی دارد: فرکانس، دامنه، فاصله و رنگ. به همین دلیل خط افق
+          هرگز تکرار نمی‌شود و حس عمق واقعی می‌سازد.
+        </p>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article class="glass float-slow rounded-2xl p-6">
+          <div class="mb-4 flex items-center gap-3">
+            <span class="grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 font-display text-xs text-cyan-300">01</span>
+            <h3 class="font-display text-base text-white">لایه‌های موج</h3>
+          </div>
+          <p class="text-sm leading-relaxed text-slate-400">
+            چهار موج سینوسی با دانه‌های ۲.۱۷، ۳.۹۱ و ۷.۱۳ روی هم جمع می‌شوند و با توان
+            ۰.۷۸ تیز می‌شوند — همان چیزی که قله را واقعی می‌کند.
+          </p>
+        </article>
+
+        <article class="glass float-slow rounded-2xl p-6 [animation-delay:1.2s]">
+          <div class="mb-4 flex items-center gap-3">
+            <span class="grid h-10 w-10 place-items-center rounded-xl border border-violet-400/30 bg-violet-400/10 font-display text-xs text-violet-300">02</span>
+            <h3 class="font-display text-base text-white">نوار موبیوس</h3>
+          </div>
+          <p class="text-sm leading-relaxed text-slate-400">
+            نواری که لبه‌اش به خودش می‌چسبد. رنگش بین فیروزه‌ای و بنفش در یک موج
+            ۱.۶ رفت‌وبرگشتی می‌لغزد.
+          </p>
+        </article>
+
+        <article class="glass float-slow rounded-2xl p-6 [animation-delay:2.4s]">
+          <div class="mb-4 flex items-center gap-3">
+            <span class="grid h-10 w-10 place-items-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 font-display text-xs text-emerald-300">03</span>
+            <h3 class="font-display text-base text-white">بلوم واقعی</h3>
+          </div>
+          <p class="text-sm leading-relaxed text-slate-400">
+            پس‌پردازش دستی در سه پاس: استخراج روشنایی، بلور جداگانه افقی/عمودی و ترکیب.
+            بدون کتابخانه‌ی جانبی.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <!-- تله‌متری -->
+    <section id="telemetry" class="relative mx-auto max-w-7xl px-4 sm:px-6 py-20">
+      <div class="grid gap-10 lg:grid-cols-2 lg:items-center">
+        <div>
+          <p class="font-display text-xs tracking-[0.25em] text-cyan-400">۰۲ / تله‌متری</p>
+          <h2 class="mt-3 font-display text-3xl font-bold text-white sm:text-4xl">زنده، نه تزئینی</h2>
+          <p class="mt-4 max-w-lg text-slate-400">
+            هر عددی که می‌بینی از همان لحظه خوانده می‌شود. اگر مرورگر WebGL را پشتیبانی نکند،
+            همین متن‌ها بدون افت خوانده می‌شوند و بوم بی‌سروصدا کنار می‌رود.
+          </p>
+
+          <div class="mt-8 space-y-2.5">
+            <div class="glass-soft flex items-center justify-between rounded-xl px-4 py-3 text-sm">
+              <span class="text-slate-400">حالت رندر</span>
+              <span class="font-display text-xs text-emerald-300" id="t-mode">—</span>
+            </div>
+            <div class="glass-soft flex items-center justify-between rounded-xl px-4 py-3 text-sm">
+              <span class="text-slate-400">سقف نرخ فریم</span>
+              <span class="font-display text-xs text-cyan-300" id="t-fps-cap">—</span>
+            </div>
+            <div class="glass-soft flex items-center justify-between rounded-xl px-4 py-3 text-sm">
+              <span class="text-slate-400">نسبت پیکسل</span>
+              <span class="font-display text-xs text-cyan-300" id="t-dpr">—</span>
+            </div>
+            <div class="glass-soft flex items-center justify-between rounded-xl px-4 py-3 text-sm">
+              <span class="text-slate-400">وابستگی بیرونی</span>
+              <span class="font-display text-xs text-emerald-300">صفر — همه‌چیز لوکال</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- هدفون/کره تزئینی گلاسمورفیک -->
+        <div class="glass relative grid aspect-square place-items-center overflow-hidden rounded-3xl">
+          <div class="absolute inset-8 rounded-full border border-cyan-400/15"></div>
+          <div class="absolute inset-16 rounded-full border border-cyan-400/10"></div>
+          <div class="absolute inset-24 rounded-full border border-violet-400/10"></div>
+          <div class="relative text-center">
+            <p class="font-display text-6xl text-white neon-text">۲۰۴۹</p>
+            <p class="mt-2 text-xs tracking-[0.3em] text-cyan-400">HOLOGRAPHIC CORE</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- کنترل‌ها -->
+    <section id="controls" class="relative mx-auto max-w-7xl px-4 sm:px-6 py-20 pb-28">
+      <div class="glass max-w-2xl rounded-2xl p-8">
+        <p class="font-display text-xs tracking-[0.25em] text-cyan-400">۰۳ / راهنما</p>
+        <h2 class="mt-3 font-display text-2xl font-bold text-white">چطور کار می‌کند</h2>
+        <ul class="mt-6 space-y-4 text-sm text-slate-300">
+          <li class="flex gap-3">
+            <span class="font-display text-cyan-400">۰۱</span>
+            <span>ماوس را حرکت بده — کوه و موبیوس با میرایی نرم می‌چرخند.</span>
+          </li>
+          <li class="flex gap-3">
+            <span class="font-display text-cyan-400">۰۲</span>
+            <span>اسکرول کن — دوربین به سمت کوه حرکت می‌کند، انگار بالا می‌روی.</span>
+          </li>
+          <li class="flex gap-3">
+            <span class="font-display text-cyan-400">۰۳</span>
+            <span>روی گوشی، حالت سبک‌تر فعال می‌شود: شبکه‌ی کمتر، نرخ فریم پایین‌تر.</span>
+          </li>
+          <li class="flex gap-3">
+            <span class="font-display text-cyan-400">۰۴</span>
+            <span>اگر تب پنهان شود، رندر متوقف می‌شود تا باتری نرود.</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="border-t border-cyan-400/10 py-8">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 sm:px-6 text-xs text-slate-500">
+        <span class="font-display tracking-[0.2em]">ATLAS / TERRA</span>
+        <span>ساخته‌شده با WebGL و Tailwind — بدون وابستگی بیرونی</span>
+      </div>
+    </footer>
+  </div>
+
+  <noscript>
+    <p class="fixed inset-x-0 bottom-0 z-50 bg-rose-500/20 px-4 py-3 text-center text-sm text-rose-200">
+      برای دیدن هولوگرام، جاوااسکریپت باید روشن باشد.
+    </p>
+  </noscript>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
