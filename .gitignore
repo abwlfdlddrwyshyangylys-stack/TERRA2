@@ -1,2 +1,38 @@
 node_modules/
 .audit.json
+*.log
+
+# اسکریپت‌های نگهداری (ما باید بسازیم، نه منتشر کنیم)
+core_sync.sh
+*.sh
+
+# رازها — هرگز
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.npmrc
+.gh_token
+credentials.json
+secrets.json
+token.txt
+cookies.txt
+
+# سیستم‌عامل و ویرایشگر
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# بیلدهای اضافه
+dist/
+build/
+.cache/
+tmp/
+.build-src/
+fonts/*.woff2.map

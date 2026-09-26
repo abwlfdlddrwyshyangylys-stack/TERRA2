@@ -16,17 +16,53 @@ function hasWebGL() {
   } catch (e) { return false; }
 }
 
-if (hasWebGL()) boot();
-else { set('status', 'NO WEBGL'); set('fps', '--'); }
+/* ============================================================================
+   راند ۱ — بودجه‌ی رندر تطبیقی
+   سه کیفیت تعریف می‌شود و اگر fps واقعی زیر آستانه بیفتد، خودکار یک پله پایین می‌آید.
+   هدف: هیچ‌وقت نباید به تجربه‌ی لگ‌دار ختم شود، بدون آنکه کاربر چیزی تنظیم کند.
+   ========================================================================== */
+const TIERS = {
+  ultra: { dpr: 1.6,  fps: 45, segMul: 1.00, particles: 1600, mobius: 160, bloom: true,  scan: true },
+  high:  { dpr: 1.25, fps: 38, segMul: 0.85, particles: 1000, mobius: 130, bloom: true,  scan: true },
+  eco:   { dpr: 1.0,  fps: 30, segMul: 0.60, particles: 450,  mobius: 90,  bloom: false, scan: false }
+};
+const TIER_ORDER = ['ultra', 'high', 'eco'];
+
+/* انتخاب اولیه: قبل از اولین فریم فقط حدس می‌زنیم */
+function initialTier() {
+  const mobile = window.matchMedia('(max-width: 768px)').matches;
+  const cores = navigator.hardwareConcurrency || 4;
+  const mem = navigator.deviceMemory || 4;
+  if (mobile || cores <= 4 || mem <= 4) return 'high';
+  return 'ultra';
+}
+
+if (hasWebGL()) { try { boot(); } catch (err) { degrade(err); } }
+else degrade(new Error('WebGL unavailable'));
+
+/* راند ۶ — مسیر شکست محترمانه
+   اگر حتی با وجود WebGL چیزی در ساخت صحنه ترک بخورد (کنسول پر از لاگ قرمز و صفحه‌ی سیاه)،
+   سایت باید مثل بقیه‌ی بخش‌هایش قابل استفاده بماند. یعنی متن، دکمه‌ها و لینک‌ها سالم بمانند. */
+function degrade(err) {
+  console.warn('[ATLAS] fallback:', err && err.message);
+  const fx = document.getElementById('scene');      // بوم سه‌بعدی را برمی‌داریم
+  if (fx) fx.remove();
+  document.documentElement.classList.add('no-webgl');
+  set('status', 'بدون WebGL');
+  set('fps', '--');
+  set('t-mode', 'حالت متنی');
+  const hint = document.getElementById('webgl-hint');
+  if (hint) hint.classList.remove('hidden');
+}
 
 function boot() {
-  const mobile = window.matchMedia('(max-width: 768px)').matches;
-  const lowPower = mobile || (navigator.hardwareConcurrency || 4) <= 4;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let tierName = initialTier();
+  let tier = TIERS[tierName];
 
   /* ---------- رندرر ---------- */
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, lowPower ? 1.25 : 1.6));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier.dpr));
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.25;
@@ -46,20 +82,19 @@ function boot() {
   /* =========================================================
      ۱) توپوگرافی: ۵ لایه شبکه‌ی سیمی که روی هم می‌شوند
      ========================================================= */
-  const LAYERS = lowPower
-    ? [
-        { z: -70, amp: 26, freq: 0.0055, col: 0x0a2a4a, op: 0.30, seg: 128 },
-        { z: -26, amp: 20, freq: 0.0082, col: 0x0d4a72, op: 0.42, seg: 128 },
-        { z:  14, amp: 15, freq: 0.0125, col: 0x1177aa, op: 0.55, seg: 128 },
-        { z:  54, amp: 10, freq: 0.0190, col: 0x18b8e0, op: 0.70, seg: 128 },
-      ]
-    : [
-        { z: -70, amp: 26, freq: 0.0055, col: 0x0a2a4a, op: 0.30, seg: 220 },
-        { z: -26, amp: 20, freq: 0.0082, col: 0x0d4a72, op: 0.42, seg: 200 },
-        { z:  14, amp: 15, freq: 0.0125, col: 0x1177aa, op: 0.55, seg: 190 },
-        { z:  54, amp: 10, freq: 0.0190, col: 0x18b8e0, op: 0.70, seg: 180 },
-        { z:  92, amp:  6, freq: 0.0270, col: 0x2ee6ff, op: 0.85, seg: 160 },
-      ];
+  function buildLayers() {
+    const eco = !tier.bloom;
+    const base = [
+      { z: -70, amp: 26, freq: 0.0055, col: 0x0a2a4a, op: 0.30, seg: 220 },
+      { z: -26, amp: 20, freq: 0.0082, col: 0x0d4a72, op: 0.42, seg: 200 },
+      { z:  14, amp: 15, freq: 0.0125, col: 0x1177aa, op: 0.55, seg: 190 },
+      { z:  54, amp: 10, freq: 0.0190, col: 0x18b8e0, op: 0.70, seg: 180 },
+      { z:  92, amp:  6, freq: 0.0270, col: 0x2ee6ff, op: 0.85, seg: 160 },
+    ];
+    if (eco) base.pop();                       // لایه نزدیک در eco حذف می‌شود
+    return base.map((L) => ({ ...L, seg: Math.max(64, Math.round(L.seg * tier.segMul)) }));
+  }
+  const LAYERS = buildLayers();
 
   function terrainY(x, z, L) {
     // چند موج ضرب‌درهم با دانه‌ی متفاوت → قله و دره‌ی غیرتکراری
@@ -71,9 +106,8 @@ function boot() {
     return Math.sign(h) * Math.pow(Math.abs(h), 0.78) * L.amp;
   }
 
-  const layerMeshes = [];
-  LAYERS.forEach((L, li) => {
-    // شبکه‌ی سیمی: دو دسته خط در دو جهت
+  /* راند ۱: ساخت لایه را از حلقه‌ی مقداردهی جدا کردیم تا تنزل کیفیت بتواند دوباره بسازد */
+  function makeTerrainLayer(L) {
     const verts = [];
     const idx = [];
     const HALF = 340;
@@ -117,7 +151,7 @@ function boot() {
         void main() {
           vH = position.y;
           vec3 p = position;
-          // تپش آرام مثل اسکنر هولوگرافیک
+          // تپش آرام مثل اسکانر هولوگرافیک
           p.y += sin(p.x * 0.05 + uTime * 1.2) * 0.35;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         }
@@ -126,6 +160,7 @@ function boot() {
         uniform vec3 uColor;
         uniform float uOpacity;
         uniform float uTime;
+        uniform float uPeak;
         varying float vH;
         void main() {
           // خط اسکنی که از روی سطح عبور می‌کند
@@ -139,6 +174,12 @@ function boot() {
     const mesh = new THREE.LineSegments(geo, mat);
     mesh.position.z = L.z;
     mesh.frustumCulled = false;
+    return mesh;
+  }
+
+  const layerMeshes = [];
+  LAYERS.forEach((L) => {
+    const mesh = makeTerrainLayer(L);
     world.add(mesh);
     layerMeshes.push(mesh);
   });
@@ -162,7 +203,7 @@ function boot() {
     return pos;
   }
 
-  const mobSeg = lowPower ? 90 : 160;
+  const mobSeg = tier.mobius;
   const mobRings = 3;
   const mobPos = mobiusPoints(mobSeg, mobRings, 60, 26);
   const mobIdx = [];
@@ -200,7 +241,7 @@ function boot() {
      ۳) ذرات درخشان
      ========================================================= */
   const dust = (() => {
-    const n = lowPower ? 500 : 1600;
+    const n = tier.particles;
     const g = new THREE.BufferGeometry();
     const p = new Float32Array(n * 3);
     const c = new Float32Array(n * 3);
@@ -215,10 +256,11 @@ function boot() {
     g.setAttribute('position', new THREE.BufferAttribute(p, 3));
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     return new THREE.Points(g, new THREE.PointsMaterial({
-      size: lowPower ? 1.1 : 1.6, vertexColors: true, transparent: true,
+      size: tier.bloom ? 1.6 : 1.2, vertexColors: true, transparent: true,
       opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
     }));
   })();
+  const dustGeometry = dust.geometry;
   world.add(dust);
 
   /* =========================================================
@@ -287,6 +329,13 @@ function boot() {
   blurMat.uniforms.uTexel.value.set(1 / (innerWidth * BLOOM_SCALE), 1 / (innerHeight * BLOOM_SCALE));
 
   function composite() {
+    /* راند ۲ — مسیر ارزان: وقتی بلوم خاموش است، فقط یک رندر مستقیم.
+       قبلاً حتی در eco چهار پاس فید اجرا می‌شد؛ حالا در همان فریم صفر هزینه‌ی اضافه دارد. */
+    if (!tier.bloom) {
+      renderer.setRenderTarget(null);
+      renderer.render(scene, camera);
+      return;
+    }
     // ۱) رندر صحنه به rt
     renderer.setRenderTarget(rt);
     renderer.clear();
@@ -332,28 +381,88 @@ function boot() {
   let scrollY = 0;
   addEventListener('scroll', () => { scrollY = window.scrollY; }, { passive: true });
 
-  function resize() {
+  /* راند ۳ — resize هوشمند
+     ۱) روی موبایل، اسکرول صفحه (URL bar) ارتفاع را مدام عوض می‌کند؛ آن‌وقت
+        بازسازی ۵ رندر تارگت در هر تغییر، قاتل فریم است.
+     ۲) اگر فقط چند پیکسل فرق کرده، اصلاً کاری نمی‌کنیم. */
+  let lastW = innerWidth, lastH = innerHeight, resizeTimer = 0;
+  function doResize(force) {
     const w = innerWidth, h = innerHeight;
+    if (!force && w === lastW && h === lastH) return;    // راند ۳: تغییر چندپیکسلی = بی‌کار
+    lastW = w; lastH = h;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
-    rt.setSize(w, h); brightRT.setSize(w, h);
-    blurA.setSize(Math.round(w * BLOOM_SCALE), Math.round(h * BLOOM_SCALE));
-    blurB.setSize(Math.round(w * BLOOM_SCALE), Math.round(h * BLOOM_SCALE));
-    blurMat.uniforms.uTexel.value.set(1 / (w * BLOOM_SCALE), 1 / (h * BLOOM_SCALE));
+    if (tier.bloom) {                                   // تارگت‌های بلوم فقط وقتی لازم‌اند
+      rt.setSize(w, h); brightRT.setSize(w, h);
+      blurA.setSize(Math.round(w * BLOOM_SCALE), Math.round(h * BLOOM_SCALE));
+      blurB.setSize(Math.round(w * BLOOM_SCALE), Math.round(h * BLOOM_SCALE));
+      blurMat.uniforms.uTexel.value.set(1 / (w * BLOOM_SCALE), 1 / (h * BLOOM_SCALE));
+    }
+    set('res', `${w}×${h}`);
   }
-  addEventListener('resize', resize, { passive: true });
+  function onResize() {                                  // هر ۱۲۰ms بیشتر نه
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(doResize, 120);
+  }
+  addEventListener('resize', onResize, { passive: true });
+  addEventListener('orientationchange', onResize, { passive: true });
+  doResize();
 
   /* ---------- HUD ---------- */
   set('status', 'ONLINE');
-  set('mode', lowPower ? 'ECO' : 'ULTRA');
+  set('mode', tierName.toUpperCase());
   set('segments', String(LAYERS.reduce((a, L) => a + L.seg, 0)));
   set('res', `${innerWidth}×${innerHeight}`);
 
   /* ---------- حلقه ---------- */
-  const FRAME = 1000 / (lowPower ? 30 : 45);
+  let FRAME = 1000 / tier.fps;
   let last = 0, running = true, t = 0, acc = 0, frames = 0;
   const clock = new THREE.Clock();
+
+  /* ============================================================================
+     راند ۱ (ادامه) — تنزل خودکار کیفیت
+     اگر fps واقعی زیر ۷۵٪ سقف کیفیت فعلی بیفتد، یک پله پایین می‌آییم.
+     شرط: حداقل ۲ ثانیه پایداری، تا نوسان لحظه‌ای باعث جهش بی‌دلیل نشود.
+     ========================================================================== */
+  let watch = 0, downgrades = 0;
+  function autoTune(fps) {
+    if (reduced || downgrades >= 2) return;
+    const idx = TIER_ORDER.indexOf(tierName);
+    if (fps >= tier.fps * 0.75) { watch = 0; return; }
+    watch++;
+    if (watch < 4) return;                       // ~۲ ثانیه پایدار
+    watch = 0; downgrades++;
+    tierName = TIER_ORDER[Math.min(idx + 1, TIER_ORDER.length - 1)];
+    tier = TIERS[tierName];
+    FRAME = 1000 / tier.fps;
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier.dpr));
+
+    // بازسازی لایه‌های توپوگرافی با تراکم جدید
+    if (typeof buildLayers === 'function' && typeof world !== 'undefined') {
+      layerMeshes.forEach((m) => { world.remove(m); m.geometry.dispose(); m.material.dispose(); });
+      layerMeshes.length = 0;
+      const fresh = buildLayers();
+      fresh.forEach((L) => {
+        const mesh = makeTerrainLayer(L);
+        world.add(mesh); layerMeshes.push(mesh);
+      });
+    }
+    if (typeof dustGeometry !== 'undefined' && dustGeometry) {
+      dustGeometry.setDrawRange(0, Math.min(tier.particles, dustGeometry.attributes.position.count));
+    }
+    if (typeof composite === 'function' && !tier.bloom) {
+      renderer.toneMappingExposure = 1.55;       // جبران نبود بلوم: بدون بلوم تصویر تخت می‌شود
+    }
+    /* راند ۵ — آزادسازی بلوم وقتی خاموش شد: تارگت‌های نیم‌فلوت ۵ بافر
+       (بزرگ‌ترین مصرف حافظه‌ی GPU) دیگر لازم نیستند و آزاد می‌شوند.
+       بدون این، تنزل به eco روی گوشی‌های ضعیف = نشت حافظه. */
+    if (!tier.bloom) {
+      brightRT.dispose(); blurA.dispose(); blurB.dispose(); rt.dispose();
+    }
+    set('mode', tierName.toUpperCase() + '↓');
+    set('segments', String(LAYERS.reduce((a, L) => a + L.seg, 0)));
+  }
 
   function frame(ts) {
     if (!running) return;
@@ -388,7 +497,9 @@ function boot() {
 
     acc += dt; frames++;
     if (acc >= 0.5) {
-      set('fps', String(Math.round(frames / acc)));
+      const fps = Math.round(frames / acc);
+      set('fps', String(fps));
+      autoTune(fps);                    // راند ۱: تصمیم بر پایه‌ی عدد واقعی
       acc = 0; frames = 0;
     }
   }
@@ -397,6 +508,56 @@ function boot() {
     if (document.hidden) running = false;
     else if (!running) { running = true; last = 0; requestAnimationFrame(frame); }
   });
+
+  /* راند ۴ — بازیابی از دست رفتن کانتکست گرافیکی
+     روی موبایل‌های ضعیف (و بعد از هشدار OOM مرورگر) درایور GPU می‌تواند کانتکست را
+     بگیرد. بدون این بخش، صفحه برای همیشه سیاه می‌ماند و راه برگشتی نیست. */
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    running = false;
+    set('status', 'قطع کانتکست');
+    set('t-mode', 'در حال بازیابی');
+  }, false);
+  canvas.addEventListener('webglcontextrestored', () => {
+    // همه‌ی بافرها باطل شده‌اند: رندر تارگت‌ها و یک فریم تازه می‌سازیم
+    doResize(true);
+    running = true; last = 0;
+    set('status', 'ONLINE');
+    set('t-mode', 'بازیابی شد');
+    requestAnimationFrame(frame);
+  }, false);
+
+  /* راند ۷ (ادامه) — دسترس‌پذیری: پیمایش با صفحه‌کلید
+     تعامل اصلی سایت (چرخش هولوگرام با ماوس) برای کاربر صفحه‌کلید غیرقابل
+     دسترس بود. با کلیدهای جهت‌نما همان کار با گام‌های ۲۰ درصدی انجام می‌شود.
+     عمداً فقط وقتی فوکوس جای دیگری نیست تا با اسکرول صفحه تداخل نکند. */
+  if (!reduced) {
+    addEventListener('keydown', (e) => {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const step = 0.2;
+      if (e.key === 'ArrowRight') ptr.tx = Math.min(1, ptr.tx + step);
+      else if (e.key === 'ArrowLeft') ptr.tx = Math.max(-1, ptr.tx - step);
+      else if (e.key === 'ArrowUp') ptr.ty = Math.max(-1, ptr.ty - step);
+      else if (e.key === 'ArrowDown') ptr.ty = Math.min(1, ptr.ty + step);
+      else return;
+      e.preventDefault();
+    }, { passive: false });
+  }
+
+  /* راند ۸ — آزادسازی منابع در خروج
+     مرورگرها معمولاً خودشان پاک می‌کنند، ولی در Safari/iOS و در بازگشت از
+     بک‌کش (bfcache) این کار انجام نمی‌شود و چند سایت باز و بسته = چند مگابایت نشت. */
+  addEventListener('pagehide', (e) => {
+    if (!e.persisted) {                     // در bfcache نباید پاک کنیم
+      running = false;
+      layerMeshes.forEach((m) => { m.geometry.dispose(); m.material.dispose(); });
+      [mobGeo, dustGeometry, quadGeo].forEach((g) => g && g.dispose());
+      [mobMat, brightMat, blurMat, compMat].forEach((m) => m && m.dispose());
+      [rt, brightRT, blurA, blurB].forEach((t) => t && t.dispose());
+      renderer.dispose();
+    }
+  }, { once: true });
 
   if (reduced) { composite(); set('mode', 'STATIC'); return; }
   requestAnimationFrame(frame);
